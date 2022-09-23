@@ -4,7 +4,7 @@ import path from 'path';
 export default {
   mode: 'production',
   target: 'node',
-  entry: './src/main.ts',
+  entry: './src/index.ts',
   module: {
     rules: [
       {
