@@ -1,14 +1,15 @@
 import {
   ChannelType,
   Client,
+  Collection,
   GatewayIntentBits,
   Snowflake,
   VoiceBasedChannel,
 } from 'discord.js';
 import TwitterWrap from './tweet';
-import json from './json';
+import { IdJson, SpeakerCount, SpeakerCountJson } from './json';
 
-import env from './env';
+import { env } from './env';
 
 const {
   CHANNEL_ID,
@@ -18,7 +19,7 @@ const {
   CONSUMER_SECRET,
   ACCESS_TOKEN_KEY,
   ACCESS_TOKEN_SECRET,
-} = env.readenv();
+} = env;
 
 const client = new Client({
   intents: [
@@ -33,13 +34,11 @@ const client = new Client({
 const wait = 60 * 0.2;
 const interval = 60 * 2;
 const processing = new Set();
-const writing = { id: [0, 0], speakers: [0, 0], intervalIDs: [0, 0] };
-const idJSON = new json('id');
-const speakersJSON = new json('speakers');
-const intervalIDsJSON = new json('intervalIDs');
-let ids: Record<string, string>,
-  speakers: Record<string, any[]>,
-  intervalIDs: Record<string, number>;
+
+const idJson = await IdJson.create();
+const speakersJson = await SpeakerCountJson.create();
+
+const intervals = new Collection<string, NodeJS.Timer>(); //key: channelId, value: interval
 
 const twitter = new TwitterWrap({
   consumer_key: CONSUMER_KEY,
@@ -55,14 +54,15 @@ async function clean(): Promise<void> {
     .then(async (guild) => guild.channels.fetch(CHANNEL_ID));
 
   if (channel?.isTextBased()) {
-    for (const key in ids) {
-      channel.messages.fetch(key).catch((e) => {
+    for (const [discordMessageId, tweetId] of idJson.data.entries()) {
+      await channel.messages.fetch(discordMessageId).catch(async (e) => {
         if ((e as { httpStatus?: number }).httpStatus === 404) {
-          twitter.delete(key, ids, writing);
+          await twitter.delete(tweetId);
+          idJson.data.delete(discordMessageId);
         }
       });
     }
-    await idJSON.write(ids, writing);
+    idJson.write();
   }
 }
 
@@ -74,7 +74,7 @@ function check(channelId: Snowflake, cleanContent: string): boolean {
 // 人数チェック
 async function checkVoiceChannelStatus(
   channelId: Snowflake
-): Promise<(number | null)[]> {
+): Promise<SpeakerCount | null> {
   const channel = await client.guilds
     .fetch(GUILD_ID)
     .then(async (guild) => guild.channels.fetch(channelId));
@@ -83,12 +83,12 @@ async function checkVoiceChannelStatus(
     channel?.type !== ChannelType.GuildVoice &&
     channel?.type !== ChannelType.GuildStageVoice
   )
-    return [null, null];
+    return null;
 
   let bots = 0;
   let humans = 0;
 
-  for (const [_, member] of channel.members) {
+  for (const [, member] of channel.members) {
     if (member.roles.botRole) {
       bots += 1;
     } else {
@@ -96,25 +96,20 @@ async function checkVoiceChannelStatus(
     }
   }
 
-  return [bots, humans];
+  return { bots, humans };
 }
 
 // ボイチャの人数をツイート
-function postVoiceChannelStatus(
+async function postVoiceChannelStatus(
   channelName: string,
   channelId: string,
   bots: number,
   humans: number
-): void {
-  const tweet = twitter.voiceChannelFormat(channelName, bots, humans);
-  twitter.post(
-    [channelId, bots, humans],
-    tweet,
-    'voice channel',
-    ids,
-    speakers,
-    writing
-  );
+): Promise<void> {
+  const tweet = TwitterWrap.voiceChannelFormat(channelName, bots, humans);
+  await twitter.post(tweet);
+  speakersJson.data.set(channelId, { bots, humans });
+  speakersJson.write();
 }
 
 // 最初の一人の入室時と最後の一人の退出時
@@ -122,35 +117,41 @@ async function firstAndLast(
   channelId: Snowflake,
   channel: VoiceBasedChannel
 ): Promise<void> {
-  await checkVoiceChannelStatus(channelId).then(async ([bots, humans]) => {
-    if (
-      bots &&
-      humans &&
-      (!(channelId in speakers) ||
-        speakers[channelId]?.[0] !== bots ||
-        speakers[channelId]?.[1] !== humans)
-    ) {
-      if (bots + humans === 0) {
-        console.log('The last one has gone out from ' + channel.name + '.');
-        clearInterval(intervalIDs[channelId]);
-        delete intervalIDs[channelId];
-        postVoiceChannelStatus(channel.name, channelId, bots, humans);
-        await intervalIDsJSON.write(intervalIDs, writing);
-      }
-      const speakerCount = speakers[channelId] as [number, number] | undefined;
-      if (
-        !(channelId in speakers) ||
-        (speakerCount && speakerCount[0] + speakerCount[1] === 0)
-      ) {
-        console.log('The first one has come into ' + channel.name + '.');
-        intervalIDs[channelId] = setInterval(() => {
-          everyInterval(channelId, channel).catch((e) => console.error(e));
-        }, 1000 * interval)[Symbol.toPrimitive]();
-        postVoiceChannelStatus(channel.name, channelId, bots, humans);
-        await intervalIDsJSON.write(intervalIDs, writing);
-      }
+  const currentState = await checkVoiceChannelStatus(channelId);
+  if (!currentState) return;
+
+  const previousState = speakersJson.data.get(channelId);
+
+  if (
+    !previousState ||
+    previousState.bots !== currentState.bots ||
+    previousState.humans !== currentState.humans
+  ) {
+    if (currentState.bots + currentState.humans === 0) {
+      console.log('The last one has gone out from ' + channel.name + '.');
+      clearInterval(intervals.get(channelId));
+      intervals.delete(channelId);
+      await postVoiceChannelStatus(
+        channel.name,
+        channelId,
+        currentState.bots,
+        currentState.humans
+      );
     }
-  });
+    if (previousState && previousState.bots + previousState.humans === 0) {
+      console.log('The first one has come into ' + channel.name + '.');
+      const intervalId = setInterval(() => {
+        everyInterval(channelId, channel).catch((e) => console.error(e));
+      }, 1000 * interval);
+      intervals.set(channelId, intervalId);
+      await postVoiceChannelStatus(
+        channel.name,
+        channelId,
+        currentState.bots,
+        currentState.humans
+      );
+    }
+  }
 }
 
 // 30分毎
@@ -158,37 +159,42 @@ async function everyInterval(
   channelId: Snowflake,
   channel: VoiceBasedChannel
 ): Promise<void> {
-  await checkVoiceChannelStatus(channelId).then(([bots, humans]) => {
-    if (
-      bots &&
-      humans &&
-      (!(channelId in speakers) ||
-        speakers[channelId]?.[0] !== bots ||
-        speakers[channelId]?.[1] !== humans)
-    ) {
-      postVoiceChannelStatus(channel.name, channelId, bots, humans);
-    }
-  });
+  const currentState = await checkVoiceChannelStatus(channelId);
+  if (!currentState) return;
+
+  const previousState = speakersJson.data.get(channelId);
+  if (
+    !previousState ||
+    previousState.bots !== currentState.bots ||
+    previousState.humans !== currentState.humans
+  ) {
+    await postVoiceChannelStatus(
+      channel.name,
+      channelId,
+      currentState.bots,
+      currentState.humans
+    );
+  }
 }
 
 // 起動時
 client.on('ready', async (client) => {
   console.log(`logged in as ${client.user.tag}`);
-  ids = await idJSON.read();
-  speakers = await speakersJSON.read();
-  intervalIDs = await intervalIDsJSON.read();
   await clean();
 });
 
 // メッセージ投稿時
-client.on('messageCreate', (msg) => {
+client.on('messageCreate', async (msg) => {
   const { id, createdAt, channelId, cleanContent } = msg;
 
   if (!check(channelId, cleanContent)) return;
 
-  const tweet = twitter.msgFormat(createdAt, cleanContent);
+  const tweet = TwitterWrap.msgFormat(createdAt, cleanContent);
 
-  twitter.post([id], tweet, 'msg', ids, speakers, writing);
+  const tweetId = await twitter.post(tweet);
+
+  idJson.data.set(id, tweetId);
+  idJson.write();
 });
 
 // メッセージ編集時
@@ -199,7 +205,12 @@ client.on('messageUpdate', async (_, msg) => {
 
   if (check(channelId, cleanContent)) return;
 
-  twitter.delete(id, ids, writing);
+  const tweetId = idJson.data.get(id);
+  idJson.data.delete(id);
+
+  if (tweetId) await twitter.delete(tweetId);
+
+  idJson.write();
 });
 
 // メッセージ削除時
@@ -210,7 +221,12 @@ client.on('messageDelete', async (msg) => {
 
   if (channelId !== CHANNEL_ID) return;
 
-  twitter.delete(id, ids, writing);
+  const tweetId = idJson.data.get(id);
+  idJson.data.delete(id);
+
+  if (tweetId) await twitter.delete(tweetId);
+
+  idJson.write();
 });
 
 // 音声状態の変化時

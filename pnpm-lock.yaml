@@ -1,6 +1,7 @@
 lockfileVersion: 5.4
 
 specifiers:
+  '@cm-ayf/readenv': ^1.1.0
   '@tsconfig/strictest': ^1.0.1
   '@types/node': ^18.6.2
   '@types/twitter': ^1.7.1
@@ -23,6 +24,7 @@ specifiers:
   webpack-cli: ^4.10.0
 
 dependencies:
+  '@cm-ayf/readenv': 1.1.0
   '@types/twitter': 1.7.1
   '@types/twitter-text': 3.1.2
   discord.js: 14.4.0
@@ -53,6 +55,10 @@ packages:
     engines: {node: '>=6.9.0'}
     dependencies:
       regenerator-runtime: 0.13.9
+    dev: false
+
+  /@cm-ayf/readenv/1.1.0:
+    resolution: {integrity: sha512-0iyMcovAaq8X34PiRTcfz08PQm5B4heJ6wRg20y6BafAvhpTom3EqHGfWaBsLbLUIzS+/+15m8AvvHGxdXn7Mg==}
     dev: false
 
   /@cspotcode/source-map-support/0.8.1:
