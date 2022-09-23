@@ -1,31 +1,39 @@
 import fs from 'fs/promises';
 
-export default class json{
-    filename: string;
-    constructor(filename: string){
-        this.filename=filename
-    };
-    async read(): Promise<Record<string,any>>{
-        const dict = await fs.access(this.filename+'.json')
-            .then(() => fs.readFile(this.filename+'.json', { encoding: 'utf-8' }))
-            .catch(() => '{}')
-            .then(JSON.parse);
-        return dict;
-    };
+export default class json {
+  private filename: string;
+  public constructor(filename: string) {
+    this.filename = filename;
+  }
+  public async read(): Promise<Record<string, any>> {
+    const dict = await fs
+      .access(this.filename + '.json')
+      .then(async () =>
+        fs.readFile(this.filename + '.json', { encoding: 'utf-8' })
+      )
+      .catch(() => '{}')
+      .then((data) => JSON.parse(data) as Record<string, any>);
+    return dict;
+  }
 
-    async write(dict: Record<string, any>, writing: Record<string, Array<number>>){
-        if (!(this.filename in writing)) writing[this.filename]= [0, 0];
-        writing[this.filename][0]+=1;
-        if (writing[this.filename][1] === 0){
-            writing[this.filename][1] = 1;
-            while (writing[this.filename][0] > 0){
-                await fs.writeFile(this.filename+'.json', JSON.stringify(dict))
-                .then(() => {writing[this.filename][0] -= 1})
-            }
-            writing[this.filename][1] = 0;
-        }
-        
+  public async write(
+    dict: Record<string, any>,
+    writing: Record<string, number[]>
+  ): Promise<void> {
+    if (!writing[this.filename]) writing[this.filename] = [0, 0];
+    const writingThisFile = writing[this.filename];
+    if (!writingThisFile || writingThisFile.length !== 2) return;
+    writingThisFile[0] += 1;
+    if (writingThisFile[1] === 0) {
+      writingThisFile[1] = 1;
+      while (writingThisFile[0] && writingThisFile[0] > 0) {
+        await fs
+          .writeFile(this.filename + '.json', JSON.stringify(dict))
+          .then(() => {
+            writingThisFile[0] -= 1;
+          });
+      }
+      writingThisFile[1] = 0;
     }
+  }
 }
-
-
