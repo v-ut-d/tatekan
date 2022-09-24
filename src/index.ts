@@ -6,6 +6,9 @@ import {
   Snowflake,
   VoiceBasedChannel,
 } from 'discord.js';
+
+import { setTimeout } from 'timers/promises';
+
 import TwitterWrap from './tweet';
 import { IdJson, SpeakerCount, SpeakerCountJson } from './json';
 
@@ -203,15 +206,13 @@ client.on('messageDelete', async (msg) => {
 });
 
 // 音声状態の変化時
-client.on('voiceStateUpdate', (oldState, newState) => {
+client.on('voiceStateUpdate', async (oldState, newState) => {
   if (newState.channel !== null && !processing.has(newState.channelId)) {
     const channel = newState.channel;
     processing.add(channel.id);
-    setTimeout(() => {
-      firstAndLast(channel)
-        .then(() => processing.delete(channel.id))
-        .catch((e) => console.error(e));
-    }, 1000 * wait);
+    await setTimeout(1000 * wait);
+    await firstAndLast(channel);
+    processing.delete(channel.id);
   }
   if (
     oldState.channel !== null &&
@@ -221,11 +222,9 @@ client.on('voiceStateUpdate', (oldState, newState) => {
   ) {
     const channel = oldState.channel;
     processing.add(channel.id);
-    setTimeout(() => {
-      firstAndLast(channel)
-        .then(() => processing.delete(channel.id))
-        .catch((e) => console.error(e));
-    }, 1000 * wait);
+    await setTimeout(1000 * wait);
+    await firstAndLast(channel);
+    processing.delete(channel.id);
   }
 });
 
