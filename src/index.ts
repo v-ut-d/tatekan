@@ -125,18 +125,18 @@ async function firstAndLast(channel: VoiceBasedChannel): Promise<void> {
   const previousState = speakersJson.data.get(channel.id);
 
   if (!previousState || !currentState.equals(previousState)) {
-    if (currentState.total === 0) {
-      console.log('The last one has gone out from ' + channel.name + '.');
-      clearInterval(intervals.get(channel.id));
-      intervals.delete(channel.id);
-      await postVoiceChannelStatus(channel.name, channel.id, currentState);
-    }
-    if (previousState?.total === 0) {
+    if (!previousState || previousState.total === 0) {
       console.log('The first one has come into ' + channel.name + '.');
       const intervalId = setInterval(() => {
         everyInterval(channel).catch((e) => console.error(e));
       }, 1000 * interval);
       intervals.set(channel.id, intervalId);
+      await postVoiceChannelStatus(channel.name, channel.id, currentState);
+    }
+    if (currentState.total === 0) {
+      console.log('The last one has gone out from ' + channel.name + '.');
+      clearInterval(intervals.get(channel.id));
+      intervals.delete(channel.id);
       await postVoiceChannelStatus(channel.name, channel.id, currentState);
     }
   }
