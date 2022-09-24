@@ -115,44 +115,38 @@ async function postVoiceChannelStatus(
 }
 
 // 最初の一人の入室時と最後の一人の退出時
-async function firstAndLast(
-  channelId: Snowflake,
-  channel: VoiceBasedChannel
-): Promise<void> {
-  const currentState = await checkVoiceChannelStatus(channelId);
+async function firstAndLast(channel: VoiceBasedChannel): Promise<void> {
+  const currentState = await checkVoiceChannelStatus(channel.id);
   if (!currentState) return;
 
-  const previousState = speakersJson.data.get(channelId);
+  const previousState = speakersJson.data.get(channel.id);
 
   if (!previousState || !currentState.equals(previousState)) {
     if (currentState.total === 0) {
       console.log('The last one has gone out from ' + channel.name + '.');
-      clearInterval(intervals.get(channelId));
-      intervals.delete(channelId);
-      await postVoiceChannelStatus(channel.name, channelId, currentState);
+      clearInterval(intervals.get(channel.id));
+      intervals.delete(channel.id);
+      await postVoiceChannelStatus(channel.name, channel.id, currentState);
     }
     if (previousState?.total === 0) {
       console.log('The first one has come into ' + channel.name + '.');
       const intervalId = setInterval(() => {
-        everyInterval(channelId, channel).catch((e) => console.error(e));
+        everyInterval(channel).catch((e) => console.error(e));
       }, 1000 * interval);
-      intervals.set(channelId, intervalId);
-      await postVoiceChannelStatus(channel.name, channelId, currentState);
+      intervals.set(channel.id, intervalId);
+      await postVoiceChannelStatus(channel.name, channel.id, currentState);
     }
   }
 }
 
 // 30分毎
-async function everyInterval(
-  channelId: Snowflake,
-  channel: VoiceBasedChannel
-): Promise<void> {
-  const currentState = await checkVoiceChannelStatus(channelId);
+async function everyInterval(channel: VoiceBasedChannel): Promise<void> {
+  const currentState = await checkVoiceChannelStatus(channel.id);
   if (!currentState) return;
 
-  const previousState = speakersJson.data.get(channelId);
+  const previousState = speakersJson.data.get(channel.id);
   if (!previousState || !currentState.equals(previousState)) {
-    await postVoiceChannelStatus(channel.name, channelId, currentState);
+    await postVoiceChannelStatus(channel.name, channel.id, currentState);
   }
 }
 
@@ -210,33 +204,26 @@ client.on('messageDelete', async (msg) => {
 
 // 音声状態の変化時
 client.on('voiceStateUpdate', (oldState, newState) => {
-  if (
-    newState.channelId !== null &&
-    newState.channel !== null &&
-    !processing.has(newState.channelId)
-  ) {
-    const channelId = newState.channelId;
+  if (newState.channel !== null && !processing.has(newState.channelId)) {
     const channel = newState.channel;
-    processing.add(channelId);
+    processing.add(channel.id);
     setTimeout(() => {
-      firstAndLast(channelId, channel)
-        .then(() => processing.delete(channelId))
+      firstAndLast(channel)
+        .then(() => processing.delete(channel.id))
         .catch((e) => console.error(e));
     }, 1000 * wait);
   }
   if (
-    oldState.channelId !== null &&
     oldState.channel !== null &&
     (newState.channelId === null ||
       newState.channelId !== oldState.channelId) &&
     !processing.has(oldState.channelId)
   ) {
-    const channelId = oldState.channelId;
     const channel = oldState.channel;
-    processing.add(channelId);
+    processing.add(channel.id);
     setTimeout(() => {
-      firstAndLast(channelId, channel)
-        .then(() => processing.delete(channelId))
+      firstAndLast(channel)
+        .then(() => processing.delete(channel.id))
         .catch((e) => console.error(e));
     }, 1000 * wait);
   }
