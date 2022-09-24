@@ -20,6 +20,7 @@ export default class TwitterWrap {
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        second: '2-digit',
         timeZone: 'Asia/Tokyo',
       }).format(createdAt) +
       ' に書き込みがありました:\n' +
@@ -60,52 +61,54 @@ export default class TwitterWrap {
     return tweet;
   }
   public async idsUpdate(
-    info: string,
-    data: any,
+    id: string,
+    data: Twitter.ResponseData,
     ids: Record<string, string>,
     writing: Record<string, number[]>
   ): Promise<void> {
-    const id = info[0];
     if (!id) throw new Error('Undefined id is forbidden');
     ids[id] = (data as { id_str: string }).id_str;
     await this.ids.write(ids, writing);
   }
 
   public async speakersUpdate(
-    info: [string, number, number],
-    speakers: Record<string, any[]>,
+    id: string,
+    infonum: number[],
+    speakers: Record<string, number[]>,
     writing: Record<string, number[]>
   ): Promise<void> {
-    const [channelId, bots, humans] = info;
-    speakers[channelId] = [bots, humans];
-    await this.speakers.write(speakers, writing);
+    speakers[id] = infonum;
+    await this.speakers.write<number[]>(speakers, writing);
   }
 
   // ツイート投稿
   public post(
-    info: any,
+    id: string,
+    infonum: number[],
     tweet: string,
     tweetType: string,
     ids: Record<string, string>,
     speakers: Record<string, number[]>,
     writing: Record<string, number[]>
   ): void {
-    this.twitter.post('statuses/update', { status: tweet }, (e, data) => {
-      if (e) console.error(e);
-      else {
-        if (tweetType === 'msg') {
-          this.idsUpdate(info as string, data, ids, writing).catch((e) =>
-            console.error(e)
-          );
-        } else if (tweetType === 'voice channel') {
-          this.speakersUpdate(
-            info as [string, number, number],
-            speakers,
-            writing
-          ).catch((e) => console.error(e));
+    this.twitter.post(
+      'statuses/update',
+      { status: tweet },
+      (e: Error, data: Twitter.ResponseData) => {
+        if (e) console.error(e);
+        else {
+          if (tweetType === 'msg') {
+            this.idsUpdate(id, data, ids, writing).catch((e) =>
+              console.error(e)
+            );
+          } else if (tweetType === 'voice channel') {
+            this.speakersUpdate(id, infonum, speakers, writing).catch((e) =>
+              console.error(e)
+            );
+          }
         }
       }
-    });
+    );
   }
 
   // ツイート削除
