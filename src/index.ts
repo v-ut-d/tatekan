@@ -9,7 +9,8 @@ import {
 import { setTimeout } from 'timers/promises';
 
 import TwitterWrap from './tweet';
-import { IdJson, SpeakerCount, SpeakerCountJson } from './json';
+import { SpeakerCount, SpeakerCountJson } from './data/SpeakerCount';
+import { IdJson } from './data/Id';
 
 import { env } from './env';
 

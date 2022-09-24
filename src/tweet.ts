@@ -1,6 +1,6 @@
 import Twitter from 'twitter';
 import TwitterText from 'twitter-text';
-import type { SpeakerCount } from './json';
+import type { SpeakerCount } from './data/SpeakerCount';
 
 export default class TwitterWrap {
   private readonly twitter: Twitter;
