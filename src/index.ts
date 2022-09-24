@@ -1,5 +1,4 @@
 import {
-  ChannelType,
   Client,
   Collection,
   GatewayIntentBits,
@@ -75,19 +74,7 @@ function check(channelId: Snowflake, cleanContent: string): boolean {
 }
 
 // 人数チェック
-async function checkVoiceChannelStatus(
-  channelId: Snowflake
-): Promise<SpeakerCount | null> {
-  const channel = await client.guilds
-    .fetch(GUILD_ID)
-    .then(async (guild) => guild.channels.fetch(channelId));
-
-  if (
-    channel?.type !== ChannelType.GuildVoice &&
-    channel?.type !== ChannelType.GuildStageVoice
-  )
-    return null;
-
+function checkVoiceChannelStatus(channel: VoiceBasedChannel): SpeakerCount {
   let bots = 0;
   let humans = 0;
 
@@ -119,8 +106,7 @@ async function postVoiceChannelStatus(
 
 // 最初の一人の入室時と最後の一人の退出時
 async function firstAndLast(channel: VoiceBasedChannel): Promise<void> {
-  const currentState = await checkVoiceChannelStatus(channel.id);
-  if (!currentState) return;
+  const currentState = checkVoiceChannelStatus(channel);
 
   const previousState = speakersJson.data.get(channel.id);
 
@@ -144,8 +130,7 @@ async function firstAndLast(channel: VoiceBasedChannel): Promise<void> {
 
 // 30分毎
 async function everyInterval(channel: VoiceBasedChannel): Promise<void> {
-  const currentState = await checkVoiceChannelStatus(channel.id);
-  if (!currentState) return;
+  const currentState = checkVoiceChannelStatus(channel);
 
   const previousState = speakersJson.data.get(channel.id);
   if (!previousState || !currentState.equals(previousState)) {
