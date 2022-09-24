@@ -1,8 +1,14 @@
-import readenv from '@cm-ayf/readenv';
+import readenvOrig from '@cm-ayf/readenv';
 
-if (process.env['NODE_ENV'] !== 'production')
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-  require('dotenv').config();
+const readenv =
+  typeof readenvOrig === 'function'
+    ? readenvOrig
+    : (readenvOrig as { default: typeof readenvOrig }).default;
+
+if (process.env['NODE_ENV'] !== 'production') {
+  const dotenv = await import('dotenv');
+  dotenv.config();
+}
 
 /**
  * environment variables that are in use; always load from here
