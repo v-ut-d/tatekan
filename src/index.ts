@@ -57,7 +57,7 @@ async function clean(): Promise<void> {
   if (channel?.isTextBased()) {
     for (const key in ids) {
       channel.messages.fetch(key).catch((e) => {
-        if ((e as { httpStatus?: number }).httpStatus === 404) {
+        if ((e as { status?: number }).status === 404) {
           twitter.delete(key, ids, writing);
         }
       });
