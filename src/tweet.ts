@@ -1,5 +1,6 @@
 import Twitter from 'twitter';
 import { parseTweet } from 'twitter-text';
+import type { SpeakerCount } from './json';
 
 export default class TwitterWrap {
   private readonly twitter: Twitter;
@@ -33,8 +34,7 @@ export default class TwitterWrap {
 
   public static voiceChannelFormat(
     channelName: string,
-    bots: number,
-    humans: number
+    speakerCount: SpeakerCount
   ): string {
     const formattedDate = new Intl.DateTimeFormat('ja-JP', {
       month: 'numeric',
@@ -45,7 +45,7 @@ export default class TwitterWrap {
     }).format(Date.now());
     return (
       `${formattedDate}現在、ボイスチャンネル「${channelName}」には\n` +
-      `人間${humans}人\nbot ${bots}機\nがいます。`
+      `人間${speakerCount.humans}人\nbot ${speakerCount.bots}機\nがいます。`
     );
   }
 

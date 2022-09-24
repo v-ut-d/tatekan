@@ -54,7 +54,7 @@ async function clean(): Promise<void> {
     .then(async (guild) => guild.channels.fetch(CHANNEL_ID));
 
   if (channel?.isTextBased()) {
-    for (const [discordMessageId, tweetId] of idJson.data.entries()) {
+    for (const [discordMessageId, tweetId] of idJson.data) {
       await channel.messages.fetch(discordMessageId).catch(async (e) => {
         if ((e as { httpStatus?: number }).httpStatus === 404) {
           await twitter.delete(tweetId);
@@ -96,19 +96,21 @@ async function checkVoiceChannelStatus(
     }
   }
 
-  return { bots, humans };
+  return new SpeakerCount({
+    bots,
+    humans,
+  });
 }
 
 // ボイチャの人数をツイート
 async function postVoiceChannelStatus(
   channelName: string,
   channelId: string,
-  bots: number,
-  humans: number
+  speakerCount: SpeakerCount
 ): Promise<void> {
-  const tweet = TwitterWrap.voiceChannelFormat(channelName, bots, humans);
+  const tweet = TwitterWrap.voiceChannelFormat(channelName, speakerCount);
   await twitter.post(tweet);
-  speakersJson.data.set(channelId, { bots, humans });
+  speakersJson.data.set(channelId, speakerCount);
   speakersJson.write();
 }
 
@@ -122,34 +124,20 @@ async function firstAndLast(
 
   const previousState = speakersJson.data.get(channelId);
 
-  if (
-    !previousState ||
-    previousState.bots !== currentState.bots ||
-    previousState.humans !== currentState.humans
-  ) {
-    if (currentState.bots + currentState.humans === 0) {
+  if (!previousState || !currentState.equals(previousState)) {
+    if (currentState.total === 0) {
       console.log('The last one has gone out from ' + channel.name + '.');
       clearInterval(intervals.get(channelId));
       intervals.delete(channelId);
-      await postVoiceChannelStatus(
-        channel.name,
-        channelId,
-        currentState.bots,
-        currentState.humans
-      );
+      await postVoiceChannelStatus(channel.name, channelId, currentState);
     }
-    if (previousState && previousState.bots + previousState.humans === 0) {
+    if (previousState?.total === 0) {
       console.log('The first one has come into ' + channel.name + '.');
       const intervalId = setInterval(() => {
         everyInterval(channelId, channel).catch((e) => console.error(e));
       }, 1000 * interval);
       intervals.set(channelId, intervalId);
-      await postVoiceChannelStatus(
-        channel.name,
-        channelId,
-        currentState.bots,
-        currentState.humans
-      );
+      await postVoiceChannelStatus(channel.name, channelId, currentState);
     }
   }
 }
@@ -163,17 +151,8 @@ async function everyInterval(
   if (!currentState) return;
 
   const previousState = speakersJson.data.get(channelId);
-  if (
-    !previousState ||
-    previousState.bots !== currentState.bots ||
-    previousState.humans !== currentState.humans
-  ) {
-    await postVoiceChannelStatus(
-      channel.name,
-      channelId,
-      currentState.bots,
-      currentState.humans
-    );
+  if (!previousState || !currentState.equals(previousState)) {
+    await postVoiceChannelStatus(channel.name, channelId, currentState);
   }
 }
 
