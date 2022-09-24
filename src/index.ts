@@ -31,8 +31,8 @@ const client = new Client({
   ],
 });
 
-const wait = 60 * 0.2;
-const interval = 60 * 2;
+const wait = 60 * 1;
+const interval = 60 * 10;
 const processing = new Set();
 
 const idJson = await IdJson.create();

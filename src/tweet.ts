@@ -1,5 +1,5 @@
 import Twitter from 'twitter';
-import { parseTweet } from 'twitter-text';
+import TwitterText from 'twitter-text';
 import type { SpeakerCount } from './json';
 
 export default class TwitterWrap {
@@ -24,10 +24,10 @@ export default class TwitterWrap {
         .replace(/@/g, '＠')
         .replace(/#/g, '#.');
 
-    let result = parseTweet(tweet);
+    let result = TwitterText.parseTweet(tweet);
     while (!result.valid) {
       tweet = tweet.slice(0, -2) + '…';
-      result = parseTweet(tweet);
+      result = TwitterText.parseTweet(tweet);
     }
     return tweet;
   }
