@@ -59,7 +59,7 @@ async function clean(): Promise<void> {
   if (channel?.isTextBased()) {
     for (const [discordMessageId, tweetId] of idJson.data) {
       await channel.messages.fetch(discordMessageId).catch(async (e) => {
-        if ((e as { httpStatus?: number }).httpStatus === 404) {
+        if ((e as { status?: number }).status === 404) {
           await twitter.delete(tweetId);
           idJson.data.delete(discordMessageId);
         }
