@@ -31,8 +31,8 @@ const client = new Client({
   ],
 });
 
-const wait = 60 * 0.2;
-const interval = 60 * 1;
+const wait = 60 * 1;
+const interval = 60 * 10;
 const processing = new Set();
 const writing = { id: [0, 0] };
 const idJSON = new json('id');
