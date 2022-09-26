@@ -1,6 +1,7 @@
 import {
   ChannelType,
   Client,
+  DiscordAPIError,
   GatewayIntentBits,
   Snowflake,
   VoiceBasedChannel,
@@ -30,16 +31,13 @@ const client = new Client({
   ],
 });
 
-const wait = 60 * 1;
-const interval = 60 * 10;
+const wait = 60 * 0.2;
+const interval = 60 * 1;
 const processing = new Set();
-const writing = { id: [0, 0], speakers: [0, 0], intervalIDs: [0, 0] };
+const writing = { id: [0, 0] };
 const idJSON = new json('id');
-const speakersJSON = new json('speakers');
-const intervalIDsJSON = new json('intervalIDs');
-let ids: Record<string, string>,
-  speakers: Record<string, any[]>,
-  intervalIDs: Record<string, number>;
+let ids: Record<string, string>, speakers: Record<string, number[]>;
+const intervalIDs: Record<string, number> = {};
 
 const twitter = new TwitterWrap({
   consumer_key: CONSUMER_KEY,
@@ -56,13 +54,14 @@ async function clean(): Promise<void> {
 
   if (channel?.isTextBased()) {
     for (const key in ids) {
-      channel.messages.fetch(key).catch((e) => {
-        if ((e as { httpStatus?: number }).httpStatus === 404) {
+      channel.messages.fetch(key).catch((e: DiscordAPIError) => {
+        console.error(e);
+        if (e.code === 10008) {
           twitter.delete(key, ids, writing);
         }
       });
     }
-    await idJSON.write(ids, writing);
+    await idJSON.write<string>(ids, writing);
   }
 }
 
@@ -108,7 +107,8 @@ function postVoiceChannelStatus(
 ): void {
   const tweet = twitter.voiceChannelFormat(channelName, bots, humans);
   twitter.post(
-    [channelId, bots, humans],
+    channelId,
+    [bots, humans],
     tweet,
     'voice channel',
     ids,
@@ -122,10 +122,12 @@ async function firstAndLast(
   channelId: Snowflake,
   channel: VoiceBasedChannel
 ): Promise<void> {
-  await checkVoiceChannelStatus(channelId).then(async ([bots, humans]) => {
+  await checkVoiceChannelStatus(channelId).then(([bots, humans]) => {
     if (
-      bots &&
-      humans &&
+      bots !== null &&
+      bots !== undefined &&
+      humans !== null &&
+      humans !== undefined &&
       (!(channelId in speakers) ||
         speakers[channelId]?.[0] !== bots ||
         speakers[channelId]?.[1] !== humans)
@@ -135,19 +137,20 @@ async function firstAndLast(
         clearInterval(intervalIDs[channelId]);
         delete intervalIDs[channelId];
         postVoiceChannelStatus(channel.name, channelId, bots, humans);
-        await intervalIDsJSON.write(intervalIDs, writing);
       }
-      const speakerCount = speakers[channelId] as [number, number] | undefined;
+      const speakerCount: number[] | undefined = speakers[channelId];
       if (
         !(channelId in speakers) ||
-        (speakerCount && speakerCount[0] + speakerCount[1] === 0)
+        (speakerCount &&
+          speakerCount.reduce(function (a, x) {
+            return a + x;
+          }) === 0)
       ) {
         console.log('The first one has come into ' + channel.name + '.');
         intervalIDs[channelId] = setInterval(() => {
           everyInterval(channelId, channel).catch((e) => console.error(e));
         }, 1000 * interval)[Symbol.toPrimitive]();
         postVoiceChannelStatus(channel.name, channelId, bots, humans);
-        await intervalIDsJSON.write(intervalIDs, writing);
       }
     }
   });
@@ -160,8 +163,10 @@ async function everyInterval(
 ): Promise<void> {
   await checkVoiceChannelStatus(channelId).then(([bots, humans]) => {
     if (
-      bots &&
-      humans &&
+      bots !== null &&
+      bots !== undefined &&
+      humans !== null &&
+      humans !== undefined &&
       (!(channelId in speakers) ||
         speakers[channelId]?.[0] !== bots ||
         speakers[channelId]?.[1] !== humans)
@@ -174,9 +179,7 @@ async function everyInterval(
 // 起動時
 client.on('ready', async (client) => {
   console.log(`logged in as ${client.user.tag}`);
-  ids = await idJSON.read();
-  speakers = await speakersJSON.read();
-  intervalIDs = await intervalIDsJSON.read();
+  ids = await idJSON.read<string>();
   await clean();
 });
 
@@ -188,7 +191,7 @@ client.on('messageCreate', (msg) => {
 
   const tweet = twitter.msgFormat(createdAt, cleanContent);
 
-  twitter.post([id], tweet, 'msg', ids, speakers, writing);
+  twitter.post(id, [], tweet, 'msg', ids, speakers, writing);
 });
 
 // メッセージ編集時

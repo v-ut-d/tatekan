@@ -5,19 +5,19 @@ export default class json {
   public constructor(filename: string) {
     this.filename = filename;
   }
-  public async read(): Promise<Record<string, any>> {
-    const dict = await fs
+  public async read<T>(): Promise<Record<string, T>> {
+    const dict: Record<string, T> = await fs
       .access(this.filename + '.json')
       .then(async () =>
         fs.readFile(this.filename + '.json', { encoding: 'utf-8' })
       )
       .catch(() => '{}')
-      .then((data) => JSON.parse(data) as Record<string, any>);
+      .then((data) => JSON.parse(data) as Record<string, T>);
     return dict;
   }
 
-  public async write(
-    dict: Record<string, any>,
+  public async write<T>(
+    dict: Record<string, T>,
     writing: Record<string, number[]>
   ): Promise<void> {
     if (!writing[this.filename]) writing[this.filename] = [0, 0];
