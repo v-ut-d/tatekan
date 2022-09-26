@@ -34,9 +34,8 @@ const client = new Client({
 const wait = 60 * 0.2;
 const interval = 60 * 1;
 const processing = new Set();
-const writing = { id: [0, 0], speakers: [0, 0] };
+const writing = { id: [0, 0] };
 const idJSON = new json('id');
-const speakersJSON = new json('speakers');
 let ids: Record<string, string>, speakers: Record<string, number[]>;
 const intervalIDs: Record<string, number> = {};
 
@@ -180,14 +179,8 @@ async function everyInterval(
 // 起動時
 client.on('ready', async (client) => {
   console.log(`logged in as ${client.user.tag}`);
-  await Promise.all([idJSON.read<string>(), speakersJSON.read<number[]>()])
-    .then(([a, b]) => {
-      [ids, speakers] = [a, b];
-    })
-    .then(async () => {
-      await clean();
-    })
-    .catch(() => console.error('Reading jsons and cleaning failed.'));
+  ids = await idJSON.read<string>();
+  await clean();
 });
 
 // メッセージ投稿時

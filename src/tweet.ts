@@ -5,11 +5,9 @@ import json from './json';
 export default class TwitterWrap {
   private readonly twitter: Twitter;
   private readonly ids: json;
-  private readonly speakers: json;
   public constructor(credential: Twitter.AccessTokenOptions) {
     this.twitter = new Twitter(credential);
     this.ids = new json('id');
-    this.speakers = new json('speakers');
   }
 
   // ツイート成型
@@ -71,14 +69,12 @@ export default class TwitterWrap {
     await this.ids.write(ids, writing);
   }
 
-  public async speakersUpdate(
+  public speakersUpdate(
     id: string,
     infonum: number[],
-    speakers: Record<string, number[]>,
-    writing: Record<string, number[]>
-  ): Promise<void> {
+    speakers: Record<string, number[]>
+  ): void {
     speakers[id] = infonum;
-    await this.speakers.write<number[]>(speakers, writing);
   }
 
   // ツイート投稿
@@ -102,9 +98,7 @@ export default class TwitterWrap {
               console.error(e)
             );
           } else if (tweetType === 'voice channel') {
-            this.speakersUpdate(id, infonum, speakers, writing).catch((e) =>
-              console.error(e)
-            );
+            this.speakersUpdate(id, infonum, speakers);
           }
         }
       }
