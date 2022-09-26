@@ -7,9 +7,9 @@ export default class json {
   }
   public async read<T>(): Promise<Record<string, T>> {
     const dict: Record<string, T> = await fs
-      .access(this.filename + '.json')
+      .access('data/' + this.filename + '.json')
       .then(async () =>
-        fs.readFile(this.filename + '.json', { encoding: 'utf-8' })
+        fs.readFile('data/' + this.filename + '.json', { encoding: 'utf-8' })
       )
       .catch(() => '{}')
       .then((data) => JSON.parse(data) as Record<string, T>);
@@ -28,7 +28,7 @@ export default class json {
       writingThisFile[1] = 1;
       while (writingThisFile[0] && writingThisFile[0] > 0) {
         await fs
-          .writeFile(this.filename + '.json', JSON.stringify(dict))
+          .writeFile('data/' + this.filename + '.json', JSON.stringify(dict))
           .then(() => {
             writingThisFile[0] -= 1;
           });

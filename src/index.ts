@@ -36,7 +36,8 @@ const interval = 60 * 10;
 const processing = new Set();
 const writing = { id: [0, 0] };
 const idJSON = new json('id');
-let ids: Record<string, string>, speakers: Record<string, number[]>;
+let ids: Record<string, string>;
+const speakers: Record<string, number[]> = {};
 const intervalIDs: Record<string, number> = {};
 
 const twitter = new TwitterWrap({
